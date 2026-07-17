@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f1220">
+<title>Ultimate Tic Tac Toe</title>
+<style>
+  :root{
+    --bg:#0f1220;
+    --panel:#181c2e;
+    --panel2:#20263f;
+    --line:#2c3350;
+    --text:#e8ebf7;
+    --muted:#98a0c0;
+    --x:#4db5ff;
+    --o:#ff6b8b;
+    --active:#ffd24d;
+    --good:#3ad19a;
+    --bad:#ff5c6c;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100%;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overscroll-behavior:none;
+  }
+  .app{width:100%; max-width:520px; padding:12px; display:flex; flex-direction:column; gap:12px;}
+  h1{font-size:20px; margin:4px 0; text-align:center; letter-spacing:.3px;}
+  h1 .x{color:var(--x)} h1 .o{color:var(--o)}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px;}
+  .muted{color:var(--muted); font-size:13px; line-height:1.5;}
+  button{
+    font:inherit; color:var(--text); background:var(--panel2);
+    border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+    cursor:pointer; touch-action:manipulation; -webkit-appearance:none;
+  }
+  button:active{transform:translateY(1px);}
+  button.primary{background:linear-gradient(180deg,#3a86ff,#2f6fe0); border-color:#3a86ff; color:#fff; font-weight:600;}
+  button.ghost{background:transparent;}
+  button:disabled{opacity:.45;}
+  .row{display:flex; gap:8px; flex-wrap:wrap;}
+  .row > *{flex:1 1 0; min-width:120px;}
+  textarea{
+    width:100%; min-height:96px; resize:vertical; background:#0c0f1c; color:var(--text);
+    border:1px solid var(--line); border-radius:10px; padding:10px; font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:12px; word-break:break-all;
+  }
+  .step{font-weight:700; font-size:13px; color:var(--active); margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;}
+  .hidden{display:none !important;}
+  .status{font-size:13px; padding:8px 10px; border-radius:10px; background:var(--panel2); text-align:center;}
+  .status.ok{background:rgba(58,209,154,.15); color:var(--good);}
+  .status.err{background:rgba(255,92,108,.15); color:var(--bad);}
+
+  /* header */
+  .hdr{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .turn{font-size:15px; font-weight:600;}
+  .turn .who{padding:2px 8px; border-radius:8px;}
+  .dot{width:10px; height:10px; border-radius:50%; background:var(--bad); display:inline-block; margin-right:5px; vertical-align:middle;}
+  .dot.on{background:var(--good);}
+  .conn{font-size:12px; color:var(--muted); white-space:nowrap;}
+
+  /* board */
+  .meta{
+    width:100%; aspect-ratio:1/1; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+    gap:8px; background:var(--line); padding:8px; border-radius:var(--radius); touch-action:manipulation;
+  }
+  .sub{
+    position:relative; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+    gap:3px; background:var(--panel); border-radius:8px; padding:3px; transition:box-shadow .15s, background .15s;
+  }
+  .sub.playable{background:#222a45; box-shadow:0 0 0 2px var(--active), 0 0 14px rgba(255,210,77,.35);}
+  .sub.decided{background:var(--panel);}
+  .cell{
+    display:flex; align-items:center; justify-content:center; background:var(--panel2);
+    border-radius:5px; font-weight:800; font-size:min(6.2vw,30px); line-height:1; user-select:none; cursor:pointer;
+    border:none; padding:0; color:var(--text);
+  }
+  .cell.x{color:var(--x);} .cell.o{color:var(--o);}
+  .cell:disabled{cursor:default;}
+  .sub.decided .cell{opacity:.28;}
+  .overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:min(20vw,110px); font-weight:900; pointer-events:none; border-radius:8px;
+  }
+  .overlay.x{color:var(--x); background:rgba(77,181,255,.10);}
+  .overlay.o{color:var(--o); background:rgba(255,107,139,.10);}
+  .overlay.d{color:var(--muted); background:rgba(152,160,192,.10); font-size:min(9vw,44px);}
+
+  /* end overlay */
+  .endwrap{position:fixed; inset:0; background:rgba(6,8,16,.82); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;}
+  .end{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; text-align:center; max-width:360px; width:100%;}
+  .end h2{margin:0 0 6px; font-size:26px;}
+  .end .big{font-size:56px; font-weight:900; margin:6px 0;}
+  .end .big.x{color:var(--x);} .end .big.o{color:var(--o);} .end .big.d{color:var(--muted);}
+  footer{color:var(--muted); font-size:11px; text-align:center; padding:6px 0 18px;}
+  .legend{display:flex; gap:14px; justify-content:center; font-size:12px; color:var(--muted); margin-top:2px;}
+  .legend b.x{color:var(--x);} .legend b.o{color:var(--o);}
+  details summary{cursor:pointer; color:var(--muted); font-size:13px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1><span class="x">Ultimate</span> Tic&nbsp;Tac&nbsp;Toe <span class="o">P2P</span></h1>
+
+  <!-- ============ CONNECT SCREEN ============ -->
+  <div id="connectScreen">
+    <div class="card" id="chooser">
+      <div class="muted" style="margin-bottom:12px;">
+        Play a friend on their phone — no server, no accounts. One of you creates a game, the other joins.
+        Trade the codes by text/email and you're connected.
+      </div>
+      <div class="row">
+        <button class="primary" id="btnCreate">Create game &nbsp;(Player A)</button>
+        <button id="btnJoin">Join game &nbsp;(Player B)</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="ghost" id="btnLocal">Practice on this device</button>
+      </div>
+    </div>
+
+    <!-- Host flow -->
+    <div class="card hidden" id="hostFlow" style="margin-top:12px;">
+      <div class="step">Step 1 · You are Player A (X)</div>
+      <div class="muted">Copy this code and send it to your friend (text/email/anything).</div>
+      <textarea id="offerOut" readonly placeholder="Generating code…"></textarea>
+      <div class="row">
+        <button id="btnCopyOffer">Copy code</button>
+      </div>
+      <div class="step" style="margin-top:16px;">Step 2 · Paste their reply</div>
+      <div class="muted">Your friend sends back an answer code. Paste it here and connect.</div>
+      <textarea id="answerIn" placeholder="Paste the answer code from Player B…"></textarea>
+      <div class="row">
+        <button class="primary" id="btnConnectHost">Connect</button>
+      </div>
+    </div>
+
+    <!-- Join flow -->
+    <div class="card hidden" id="joinFlow" style="margin-top:12px;">
+      <div class="step">Step 1 · You are Player B (O)</div>
+      <div class="muted">Paste the code Player A sent you.</div>
+      <textarea id="offerIn" placeholder="Paste the game code from Player A…"></textarea>
+      <div class="row">
+        <button class="primary" id="btnMakeAnswer">Generate answer</button>
+      </div>
+      <div class="step" style="margin-top:16px;">Step 2 · Send this back</div>
+      <div class="muted">Copy this answer code and send it to Player A. The game starts once they connect.</div>
+      <textarea id="answerOut" readonly placeholder="Answer appears here after step 1…"></textarea>
+      <div class="row">
+        <button id="btnCopyAnswer">Copy answer</button>
+      </div>
+    </div>
+
+    <div id="connectStatus" class="status hidden" style="margin-top:12px;"></div>
+    <div class="row" style="margin-top:12px;">
+      <button class="ghost hidden" id="btnBack">Back</button>
+    </div>
+  </div>
+
+  <!-- ============ GAME SCREEN ============ -->
+  <div id="gameScreen" class="hidden">
+    <div class="hdr">
+      <div class="turn" id="turnText">—</div>
+      <div class="conn"><span class="dot" id="connDot"></span><span id="connText">local</span></div>
+    </div>
+    <div class="legend">You are <b id="youMark">X</b> · <b class="x">X</b> blue · <b class="o">O</b> pink</div>
+    <div class="meta" id="board"></div>
+    <div id="dropBanner" class="status err hidden" style="margin-top:4px;"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="ghost" id="btnResign">Leave game</button>
+    </div>
+  </div>
+
+  <footer>Peer-to-peer over WebRTC · works offline once opened · <a style="color:var(--muted)" href="#" id="howLink">how it works</a></footer>
+  <details id="howto" class="card hidden" style="margin-top:-6px;">
+    <summary>How it works</summary>
+    <div class="muted" style="margin-top:8px;">
+      This whole game is one HTML file. When you Create a game your phone builds a connection offer; your friend's
+      Join builds an answer. Trading those two codes lets the phones talk directly (peer-to-peer) with no server in
+      the middle. Public STUN servers are used only to discover your address for the initial handshake — no game data
+      passes through them. If the connection drops, tap Reconnect and re-trade codes; your board is preserved and
+      re-synced automatically.
+    </div>
+  </details>
+</div>
+
+<!-- ============ END OVERLAY ============ -->
+<div id="endWrap" class="endwrap hidden">
+  <div class="end">
+    <h2 id="endTitle">Game over</h2>
+    <div class="big" id="endBig">–</div>
+    <div class="muted" id="endSub"></div>
+    <div class="row" style="margin-top:16px;">
+      <button class="primary" id="btnRematch">Rematch</button>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <button class="ghost" id="btnNewConn">New connection</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   1) GAME LOGIC  (pure, no DOM, no network — testable alone)
+   ============================================================ */
+const LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+function lineWinner(arr){ // arr of 9 with 'X'/'O'/null (other values treated as null)
+  for(const [a,b,c] of LINES){
+    const v = arr[a];
+    if((v==='X'||v==='O') && arr[b]===v && arr[c]===v) return v;
+  }
+  return null;
+}
+
+function newGame(startPlayer='X'){
+  return {
+    cells: Array.from({length:9}, ()=>Array(9).fill(null)), // cells[board][cell]
+    won:   Array(9).fill(null),   // 'X' | 'O' | 'D' | null
+    active: null,                 // forced board index, or null = any playable
+    turn:  startPlayer,           // 'X' | 'O'
+    winner: null,                 // 'X' | 'O' | 'D' | null
+    moveCount: 0,
+    startPlayer
+  };
+}
+
+function boardPlayable(g, b){
+  return g.won[b]===null && g.cells[b].some(c=>c===null);
+}
+
+function legalBoards(g){
+  if(g.winner) return [];
+  if(g.active!==null && boardPlayable(g, g.active)) return [g.active];
+  const list=[];
+  for(let b=0;b<9;b++) if(boardPlayable(g,b)) list.push(b);
+  return list;
+}
+
+function isLegalMove(g, b, c){
+  if(g.winner) return false;
+  if(b<0||b>8||c<0||c>8) return false;
+  if(g.cells[b][c]!==null) return false;
+  return legalBoards(g).includes(b);
+}
+
+// Mutates g. Returns true if applied.
+function applyMove(g, b, c){
+  if(!isLegalMove(g,b,c)) return false;
+  const mark = g.turn;
+  g.cells[b][c] = mark;
+
+  // sub-board result
+  const w = lineWinner(g.cells[b]);
+  if(w) g.won[b] = w;
+  else if(g.cells[b].every(x=>x!==null)) g.won[b] = 'D';
+
+  // meta result
+  const metaWin = lineWinner(g.won);
+  if(metaWin) g.winner = metaWin;
+  else if(g.won.every(x=>x!==null)){
+    // no 3-in-a-row and every sub-board decided -> whoever claimed more wins, else draw
+    let xc=0, oc=0;
+    for(const s of g.won){ if(s==='X')xc++; else if(s==='O')oc++; }
+    g.winner = xc>oc ? 'X' : oc>xc ? 'O' : 'D';
+  }
+
+  // next active board = the cell position just played, unless that board is now closed
+  g.active = boardPlayable(g, c) ? c : null;
+
+  g.turn = mark==='X' ? 'O' : 'X';
+  g.moveCount++;
+  return true;
+}
+
+function serialize(g){ return JSON.stringify(g); }
+function deserialize(s){ return JSON.parse(s); }
+
+// expose for quick console self-tests
+window.UTTT = { newGame, applyMove, isLegalMove, legalBoards, lineWinner };
+
+/* ============================================================
+   2) UI RENDERING
+   ============================================================ */
+let game = newGame('X');
+let myMark = 'X';       // 'X' host, 'O' guest, both in local mode
+let mode = 'local';     // 'local' | 'net'
+let connected = false;
+
+const $ = id => document.getElementById(id);
+const boardEl = $('board');
+
+function isMyTurn(){
+  if(mode==='local') return true;
+  return connected && game.turn===myMark;
+}
+
+function buildBoard(){
+  boardEl.innerHTML='';
+  for(let b=0;b<9;b++){
+    const sub=document.createElement('div');
+    sub.className='sub'; sub.dataset.b=b;
+    for(let c=0;c<9;c++){
+      const cell=document.createElement('button');
+      cell.className='cell'; cell.dataset.b=b; cell.dataset.c=c;
+      cell.addEventListener('click', ()=>onCellTap(b,c));
+      sub.appendChild(cell);
+    }
+    const ov=document.createElement('div'); ov.className='overlay hidden';
+    sub.appendChild(ov);
+    boardEl.appendChild(sub);
+  }
+}
+
+function render(){
+  const legal = new Set(legalBoards(game));
+  const myTurn = isMyTurn();
+  for(let b=0;b<9;b++){
+    const sub = boardEl.children[b];
+    const decided = game.won[b]!==null;
+    sub.classList.toggle('decided', decided);
+    sub.classList.toggle('playable', !game.winner && legal.has(b) && myTurn);
+    const ov = sub.querySelector('.overlay');
+    if(decided){
+      ov.className = 'overlay ' + (game.won[b]==='D'?'d':game.won[b].toLowerCase());
+      ov.textContent = game.won[b]==='D' ? '—' : game.won[b];
+    }else{
+      ov.className='overlay hidden';
+    }
+    for(let c=0;c<9;c++){
+      const cell = sub.children[c];
+      const v = game.cells[b][c];
+      cell.textContent = v || '';
+      cell.className = 'cell' + (v==='X'?' x':v==='O'?' o':'');
+      const canPlay = myTurn && !game.winner && isLegalMove(game,b,c);
+      cell.disabled = !canPlay;
+    }
+  }
+  renderTurn();
+  saveState();
+}
+
+function renderTurn(){
+  const t=$('turnText');
+  if(game.winner){ t.textContent='Game over'; return; }
+  const color = game.turn==='X' ? 'var(--x)' : 'var(--o)';
+  let label;
+  if(mode==='local'){
+    label = `Turn: <span class="who" style="background:${color}22;color:${color}">${game.turn}</span>`;
+  }else{
+    label = isMyTurn()
+      ? `<span class="who" style="background:${color}22;color:${color}">Your turn (${game.turn})</span>`
+      : `<span class="who" style="color:var(--muted)">Opponent's turn (${game.turn})</span>`;
+  }
+  t.innerHTML = label;
+  $('youMark').textContent = mode==='local' ? 'both' : myMark;
+  $('youMark').className = myMark==='X'?'x':'o';
+}
+
+function onCellTap(b,c){
+  if(!isMyTurn()) return;
+  if(!isLegalMove(game,b,c)) return;
+  doMove(b,c,true);
+}
+
+function doMove(b,c,local){
+  if(!applyMove(game,b,c)) return;
+  if(local && mode==='net' && connected){
+    send({type:'move', board:b, cell:c});
+  }
+  render();
+  if(game.winner) showEnd();
+}
+
+/* ---------- end screen ---------- */
+function showEnd(){
+  const w=game.winner;
+  const big=$('endBig'), title=$('endTitle'), sub=$('endSub');
+  if(w==='D'){
+    title.textContent="It's a draw"; big.textContent='—'; big.className='big d';
+    sub.textContent='Nobody claimed three sub-boards in a row.';
+  }else{
+    big.textContent=w; big.className='big '+w.toLowerCase();
+    if(mode==='local'){ title.textContent=`${w} wins!`; sub.textContent=''; }
+    else if(w===myMark){ title.textContent='You win! 🎉'; sub.textContent=`You claimed the meta-board as ${w}.`; }
+    else{ title.textContent='You lost'; sub.textContent=`Opponent claimed the meta-board as ${w}.`; }
+  }
+  $('btnNewConn').classList.toggle('hidden', mode==='local');
+  $('endWrap').classList.remove('hidden');
+}
+function hideEnd(){ $('endWrap').classList.add('hidden'); }
+
+/* ---------- rematch ---------- */
+function startRematch(newStart, fromPeer){
+  game = newGame(newStart);
+  hideEnd();
+  render();
+  if(mode==='net' && connected && !fromPeer){
+    send({type:'rematch', start:newStart});
+  }
+}
+$('btnRematch').addEventListener('click', ()=>{
+  const next = game.startPlayer==='X' ? 'O' : 'X'; // alternate first move
+  startRematch(next, false);
+});
+$('btnNewConn').addEventListener('click', ()=>{ hideEnd(); teardownNet(); showConnect(); });
+
+/* ---------- screen switching ---------- */
+function showGame(){
+  $('connectScreen').classList.add('hidden');
+  $('gameScreen').classList.remove('hidden');
+  render();
+}
+function showConnect(){
+  $('gameScreen').classList.add('hidden');
+  $('endWrap').classList.add('hidden');
+  $('connectScreen').classList.remove('hidden');
+  resetConnectUI();
+}
+
+/* ---------- persistence (survives reload / aids reconnect) ---------- */
+function saveState(){
+  // Persist the live board so a page reload/crash mid-game doesn't lose it.
+  try{ localStorage.setItem('uttt_game', serialize(game)); }catch(e){}
+}
+
+/* ============================================================
+   3) WEBRTC  (manual copy/paste handshake, no signaling server)
+   ============================================================ */
+const RTC_CONFIG = { iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' }
+]};
+
+let pc=null, channel=null, isHost=false;
+
+function b64encode(str){ return btoa(unescape(encodeURIComponent(str))); }
+function b64decode(str){ return decodeURIComponent(escape(atob(str.trim()))); }
+function encodeDesc(d){ return b64encode(JSON.stringify({t:d.type, s:d.sdp})); }
+function decodeDesc(code){ const o=JSON.parse(b64decode(code)); return {type:o.t, sdp:o.s}; }
+
+function waitIce(pc){
+  return new Promise(res=>{
+    if(pc.iceGatheringState==='complete') return res();
+    let done=false;
+    const finish=()=>{ if(done) return; done=true; res(); };
+    pc.addEventListener('icegatheringstatechange', ()=>{ if(pc.iceGatheringState==='complete') finish(); });
+    pc.addEventListener('icecandidate', e=>{ if(!e.candidate) finish(); });
+    setTimeout(finish, 3500); // best-effort if gathering stalls on mobile
+  });
+}
+
+function setupChannel(ch){
+  channel = ch;
+  ch.onopen = ()=>{
+    connected = true; mode='net';
+    updateConn();
+    hideDropBanner();
+    // resync: send our full state; higher moveCount wins on both ends
+    send({type:'sync', state: serialize(game)});
+    showGame();
+    setConnStatus('Connected! Starting game…','ok');
+  };
+  ch.onclose = ()=>{ connected=false; updateConn(); onDrop(); };
+  ch.onerror = ()=>{ /* surfaced via onclose */ };
+  ch.onmessage = e=>{
+    let msg; try{ msg=JSON.parse(e.data); }catch(_){ return; }
+    handleMessage(msg);
+  };
+}
+
+function handleMessage(msg){
+  switch(msg.type){
+    case 'move':
+      // apply peer move (validated by isLegalMove inside applyMove)
+      doMove(msg.board, msg.cell, false);
+      break;
+    case 'sync': {
+      const incoming = deserialize(msg.state);
+      if(incoming.moveCount > game.moveCount){
+        game = incoming;
+        render();
+        if(game.winner) showEnd(); else hideEnd();
+      }
+      break;
+    }
+    case 'rematch':
+      startRematch(msg.start, true);
+      break;
+  }
+}
+
+function send(obj){
+  if(channel && channel.readyState==='open'){
+    try{ channel.send(JSON.stringify(obj)); }catch(e){}
+  }
+}
+
+function newPeer(){
+  pc = new RTCPeerConnection(RTC_CONFIG);
+  pc.onconnectionstatechange = ()=>{
+    if(pc && (pc.connectionState==='failed' || pc.connectionState==='disconnected')){
+      connected=false; updateConn(); onDrop();
+    }
+  };
+  return pc;
+}
+
+async function hostCreateOffer(){
+  isHost=true; myMark='X';
+  setConnStatus('Building your game code…','');
+  newPeer();
+  const ch = pc.createDataChannel('game', {ordered:true});
+  setupChannel(ch);
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await waitIce(pc);
+  $('offerOut').value = encodeDesc(pc.localDescription);
+  setConnStatus('Code ready — send it to Player B, then paste their answer below.','');
+}
+
+async function hostAcceptAnswer(){
+  const code=$('answerIn').value.trim();
+  if(!code){ setConnStatus('Paste the answer code from Player B first.','err'); return; }
+  try{
+    await pc.setRemoteDescription(decodeDesc(code));
+    setConnStatus('Answer accepted — connecting…','ok');
+  }catch(e){ setConnStatus('That answer code looks invalid. Ask Player B to re-copy it.','err'); }
+}
+
+async function guestMakeAnswer(){
+  const code=$('offerIn').value.trim();
+  if(!code){ setConnStatus('Paste the game code from Player A first.','err'); return; }
+  isHost=false; myMark='O';
+  try{
+    newPeer();
+    pc.ondatachannel = e=> setupChannel(e.channel);
+    await pc.setRemoteDescription(decodeDesc(code));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await waitIce(pc);
+    $('answerOut').value = encodeDesc(pc.localDescription);
+    setConnStatus('Answer ready — send it back to Player A.','');
+  }catch(e){ setConnStatus('That game code looks invalid. Ask Player A to re-copy it.','err'); }
+}
+
+function teardownNet(){
+  try{ if(channel) channel.close(); }catch(e){}
+  try{ if(pc) pc.close(); }catch(e){}
+  channel=null; pc=null; connected=false; mode='local';
+  updateConn();
+}
+
+function onDrop(){
+  if(mode!=='net') return;
+  updateConn();
+  const banner=$('dropBanner');
+  banner.textContent='Connection lost. Your board is saved. Tap "Leave game" → reconnect and re-trade codes to resume.';
+  banner.classList.remove('hidden');
+}
+function hideDropBanner(){ $('dropBanner').classList.add('hidden'); }
+
+function updateConn(){
+  const dot=$('connDot'), txt=$('connText');
+  if(mode==='local'){ dot.className='dot'; txt.textContent='local'; return; }
+  dot.className='dot'+(connected?' on':'');
+  txt.textContent = connected ? 'connected' : 'disconnected';
+}
+
+/* ---------- connect-screen UI wiring ---------- */
+function setConnStatus(msg, kind){
+  const el=$('connectStatus');
+  el.textContent=msg; el.className='status '+(kind||'');
+  el.classList.remove('hidden');
+}
+function resetConnectUI(){
+  $('chooser').classList.remove('hidden');
+  $('hostFlow').classList.add('hidden');
+  $('joinFlow').classList.add('hidden');
+  $('btnBack').classList.add('hidden');
+  $('connectStatus').classList.add('hidden');
+  $('offerOut').value=''; $('answerIn').value='';
+  $('offerIn').value=''; $('answerOut').value='';
+}
+async function copyText(text, btn){
+  try{ await navigator.clipboard.writeText(text); }
+  catch(e){ /* fallback */ const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(_){}; ta.remove(); }
+  const old=btn.textContent; btn.textContent='Copied ✓'; setTimeout(()=>btn.textContent=old,1200);
+}
+
+$('btnCreate').addEventListener('click', ()=>{
+  $('chooser').classList.add('hidden');
+  $('hostFlow').classList.remove('hidden');
+  $('btnBack').classList.remove('hidden');
+  hostCreateOffer();
+});
+$('btnJoin').addEventListener('click', ()=>{
+  $('chooser').classList.add('hidden');
+  $('joinFlow').classList.remove('hidden');
+  $('btnBack').classList.remove('hidden');
+});
+$('btnLocal').addEventListener('click', ()=>{
+  teardownNet();          // resets mode to 'local'
+  game = newGame('X');    // fresh practice game (hot-seat, same device)
+  myMark='X';
+  showGame();
+});
+$('btnBack').addEventListener('click', ()=>{ teardownNet(); resetConnectUI(); });
+$('btnCopyOffer').addEventListener('click', e=>copyText($('offerOut').value, e.currentTarget));
+$('btnCopyAnswer').addEventListener('click', e=>copyText($('answerOut').value, e.currentTarget));
+$('btnConnectHost').addEventListener('click', hostAcceptAnswer);
+$('btnMakeAnswer').addEventListener('click', guestMakeAnswer);
+$('btnResign').addEventListener('click', ()=>{ teardownNet(); showConnect(); });
+
+$('howLink').addEventListener('click', e=>{ e.preventDefault(); $('howto').classList.toggle('hidden'); $('howto').open=true; });
+
+/* ============================================================
+   INIT
+   ============================================================ */
+buildBoard();
+updateConn();
+
+/* ---- lightweight self-tests (run in console: UTTT check) ---- */
+window.__selftest = function(){
+  const g=newGame('X');
+  console.assert(legalBoards(g).length===9, 'first move: any board');
+  applyMove(g,0,4); // X plays center of board 0 -> sends O to board 4
+  console.assert(g.active===4 && g.turn==='O', 'active follows cell');
+  console.assert(!isLegalMove(g,0,4), 'occupied illegal');
+  console.assert(!isLegalMove(g,3,0), 'wrong board illegal');
+  // win a sub-board
+  const g2=newGame('X');
+  applyMove(g2,0,0); applyMove(g2,0,3); // X0, O3
+  applyMove(g2,0,1); applyMove(g2,0,4);
+  applyMove(g2,0,2); // X completes top row of board 0
+  console.assert(g2.won[0]==='X', 'sub-board win detected');
+  console.log('self-tests passed');
+  return true;
+};
+</script>
+</body>
+</html>
