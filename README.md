@@ -35,14 +35,20 @@ on one phone with no connection needed (handy for trying it out).
   channel (re)opens both sides exchange a full-state `sync` message so the game resumes in
   agreement (higher move-count wins).
 
-### One design note: STUN
+### One design note: STUN / TURN
 
-The handshake uses public **STUN** servers (Google + Cloudflare) purely to discover each
-phone's network address so the two devices can connect across different networks/NATs. STUN
-is not a signaling server and carries **no game data** — all moves flow directly peer-to-peer.
-This is the only network dependency, and it's only touched during the initial handshake; once
-connected the game needs nothing external. (Very restrictive/symmetric NATs that require TURN
-are the known limitation of any serverless P2P handshake.)
+The handshake uses public **STUN** servers (Google + Cloudflare) to discover each phone's
+public address, and a public **TURN** relay (Open Relay) as a fallback when a direct link
+isn't possible. These are touched **only during the connection handshake** and carry **no
+game data** once a peer-to-peer path is established — all moves flow directly device-to-device.
+They are the only network dependency; after connecting, the game needs nothing external.
+
+**If connecting hangs:** two phones on **separate mobile-data networks** often sit behind
+carrier-grade/symmetric NAT that blocks direct links. The TURN relay is attempted
+automatically, but public relays aren't always reachable. The most reliable path is to put
+**both phones on the same Wi-Fi** for the handshake. The connection UI now reports live status
+(checking / connecting / failed) instead of hanging, and times out with a hint if it can't
+establish a path.
 
 ## Testing
 

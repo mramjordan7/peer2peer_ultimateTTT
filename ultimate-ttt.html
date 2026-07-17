@@ -434,12 +434,21 @@ function saveState(){
 /* ============================================================
    3) WEBRTC  (manual copy/paste handshake, no signaling server)
    ============================================================ */
-const RTC_CONFIG = { iceServers: [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun.cloudflare.com:3478' }
-]};
+// STUN discovers your public address; TURN relays traffic when a direct
+// path is impossible (e.g. cellular / symmetric NAT). The TURN entries use
+// Open Relay's free public credentials — touched only during connect, and
+// only as a fallback if a direct peer-to-peer path can't be found.
+const RTC_CONFIG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'turn:openrelay.metered.ca:80',                username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',               username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+  ],
+  iceCandidatePoolSize: 4
+};
 
 let pc=null, channel=null, isHost=false;
 
@@ -449,13 +458,20 @@ function encodeDesc(d){ return b64encode(JSON.stringify({t:d.type, s:d.sdp})); }
 function decodeDesc(code){ const o=JSON.parse(b64decode(code)); return {type:o.t, sdp:o.s}; }
 
 function waitIce(pc){
+  // Non-trickle handshake: the code must carry usable ICE candidates. We wait
+  // for gathering to COMPLETE (so reflexive/relay candidates make it in), but
+  // finish early the moment a relay candidate appears (that alone guarantees a
+  // path), with a generous safety cap for slow mobile networks.
   return new Promise(res=>{
     if(pc.iceGatheringState==='complete') return res();
     let done=false;
     const finish=()=>{ if(done) return; done=true; res(); };
     pc.addEventListener('icegatheringstatechange', ()=>{ if(pc.iceGatheringState==='complete') finish(); });
-    pc.addEventListener('icecandidate', e=>{ if(!e.candidate) finish(); });
-    setTimeout(finish, 3500); // best-effort if gathering stalls on mobile
+    pc.addEventListener('icecandidate', e=>{
+      if(!e.candidate) return finish();                        // gathering done
+      if(/ typ relay /.test(e.candidate.candidate)) finish();  // relay ready -> good enough
+    });
+    setTimeout(finish, 9000); // safety cap for slow mobile gathering
   });
 }
 
@@ -463,6 +479,7 @@ function setupChannel(ch){
   channel = ch;
   ch.onopen = ()=>{
     connected = true; mode='net';
+    clearWatchdog();
     updateConn();
     hideDropBanner();
     // resync: send our full state; higher moveCount wins on both ends
@@ -505,8 +522,21 @@ function send(obj){
   }
 }
 
+let connectWatchdog=null;
+function clearWatchdog(){ if(connectWatchdog){ clearTimeout(connectWatchdog); connectWatchdog=null; } }
+
 function newPeer(){
   pc = new RTCPeerConnection(RTC_CONFIG);
+  pc.oniceconnectionstatechange = ()=>{
+    if(!pc || connected) return;
+    const s = pc.iceConnectionState;                 // new/checking/connected/completed/failed/disconnected
+    if(s==='checking')  setConnStatus('Connecting… finding a path between your phones.','');
+    if(s==='connected'||s==='completed') setConnStatus('Path found — opening game…','ok');
+    if(s==='failed'){
+      clearWatchdog();
+      setConnStatus("Couldn't connect. You're likely on separate mobile networks that block direct links. Try both phones on the same Wi-Fi, or tap Back and re-generate fresh codes.",'err');
+    }
+  };
   pc.onconnectionstatechange = ()=>{
     if(pc && (pc.connectionState==='failed' || pc.connectionState==='disconnected')){
       connected=false; updateConn(); onDrop();
@@ -533,8 +563,12 @@ async function hostAcceptAnswer(){
   if(!code){ setConnStatus('Paste the answer code from Player B first.','err'); return; }
   try{
     await pc.setRemoteDescription(decodeDesc(code));
-    setConnStatus('Answer accepted — connecting…','ok');
-  }catch(e){ setConnStatus('That answer code looks invalid. Ask Player B to re-copy it.','err'); }
+    setConnStatus('Answer accepted — connecting…','');
+    clearWatchdog();
+    connectWatchdog = setTimeout(()=>{
+      if(!connected) setConnStatus("Still not connected. This usually means both phones are on mobile data / different networks that block direct connections. Best fix: put both phones on the SAME Wi-Fi and re-do the codes. (A relay is attempted automatically but isn't always reachable.)",'err');
+    }, 25000);
+  }catch(e){ setConnStatus('That answer code looks invalid. Ask Player B to re-copy the whole thing.','err'); }
 }
 
 async function guestMakeAnswer(){
