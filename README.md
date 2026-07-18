@@ -1,71 +1,73 @@
-# Ultimate Tic Tac Toe — P2P
+# Ultimate Tic Tac Toe 🎮
 
-A complete game of **Ultimate Tic Tac Toe** in a single, self-contained HTML file.
-No build step, no server, no accounts. Text or email the file to a friend, both
-open it on your phones, trade two short codes, and play.
+A fun twist on tic tac toe you can play with a friend on your phones — no app
+store, no sign-up, no accounts. It's just one file. Text or email it to a friend,
+you both open it, and you're playing in under a minute.
 
-**File:** [`ultimate-ttt.html`](ultimate-ttt.html)
+**The game is the file `ultimate-ttt.html`.** Open it in your phone's browser.
 
-## How to play
+---
 
-1. Open `ultimate-ttt.html` in a mobile browser (iOS Safari / Android Chrome).
-2. **Player A** taps **Create game**, copies the generated code, and sends it to Player B.
-3. **Player B** taps **Join game**, pastes A's code, taps **Generate answer**, and sends
-   the answer code back to A.
-4. **Player A** pastes the answer and taps **Connect**. The board appears on both phones.
+## How to start a game
 
-Moves sync directly, phone-to-phone. A **Practice on this device** button plays hot-seat
-on one phone with no connection needed (handy for trying it out).
+You'll trade two little codes to link your phones — like a secret handshake.
+One person is **Player A**, the other is **Player B**.
 
-## Rules
+1. **Both** open `ultimate-ttt.html` on your phones.
+2. **Player A** taps **Create game** and gets a code. Copy it and send it to Player B
+   (text, email, whatever's easiest).
+3. **Player B** taps **Join game**, pastes in that code, and taps **Generate answer**.
+   You'll get a second code — copy it and send it *back* to Player A.
+4. **Player A** pastes that answer code and taps **Connect**.
 
-- 9 sub-boards (a 3×3 grid of 3×3 boards, 81 cells).
-- The cell you play sends your opponent to the matching sub-board.
-- If that sub-board is already won or full, they may play in any open sub-board (highlighted).
-- Win 3 in a row inside a sub-board to claim it; claim 3 sub-boards in a row to win the game.
-- Full-with-no-line counts as a draw at the sub-board level; a full meta-board with no line
-  goes to whoever claimed more sub-boards (draw if tied).
+That's it — the board pops up on both phones and you take turns. Your moves show up
+on each other's screens instantly.
 
-## Networking
+> **Just want to try it out?** Tap **Practice on this device** to play both sides on
+> one phone. No codes, no friend needed.
 
-- **WebRTC data channel**, peer-to-peer, with a **manual copy/paste handshake** — no
-  signaling server and no backend.
-- **Short handshake codes (~200 chars).** Rather than sending the full ~1400-char WebRTC
-  description, only the fields that differ each time (ICE credentials, DTLS fingerprint,
-  setup role, candidate addresses) are packed into a compact code and the full description
-  is rebuilt on the other side. All candidate types are preserved, and an unexpected SDP
-  falls back automatically to the full-length format so connectivity is never sacrificed.
-  Everyone must be on this version of the file for the short codes to interoperate.
-- Game moves travel as JSON over the data channel (e.g. `{type:"move", board:4, cell:7}`).
-- **Disconnect/reconnect is handled gracefully:** the board is preserved locally, and when a
-  channel (re)opens both sides exchange a full-state `sync` message so the game resumes in
-  agreement (higher move-count wins).
+---
 
-### One design note: STUN / TURN
+## How to play (the rules)
 
-The handshake uses public **STUN** servers (Google + Cloudflare) to discover each phone's
-public address, and a public **TURN** relay (Open Relay) as a fallback when a direct link
-isn't possible. These are touched **only during the connection handshake** and carry **no
-game data** once a peer-to-peer path is established — all moves flow directly device-to-device.
-They are the only network dependency; after connecting, the game needs nothing external.
+It's tic tac toe inside tic tac toe. The board is a big 3×3 grid, and **every square
+is its own little tic tac toe board.**
 
-**If connecting hangs:** two phones on **separate mobile-data networks** often sit behind
-carrier-grade/symmetric NAT that blocks direct links. The TURN relay is attempted
-automatically, but public relays aren't always reachable. The most reliable path is to put
-**both phones on the same Wi-Fi** for the handshake. The connection UI now reports live status
-(checking / connecting / failed) instead of hanging, and times out with a hint if it can't
-establish a path.
+- **The move you make decides where your opponent plays next.** If you play in the
+  *top-right* square of a small board, your opponent must play in the *top-right* small
+  board. The board they have to use lights up so it's easy to see.
+- If you get sent to a board that's already won or full, you get to **play anywhere**.
+- **Win a small board** by getting three in a row in it — it gets stamped with your X or O.
+- **Win the game** by winning three small boards in a row.
+- If a board fills up with no winner, it's a tie for that board. If the whole game fills
+  up with no three-in-a-row, whoever won more small boards wins.
 
-## Testing
+When the game ends, tap **Rematch** to play again — no need to trade codes a second time.
 
-Pure game logic and the full networked flow were verified headlessly:
+---
 
-- **Logic** (`scratchpad/logic2.test.mjs`): 16 assertions covering move validation, the
-  redirect rule, redirect-to-won-board → free choice, sub-board/meta win + draw detection,
-  and serialization. The same checks run in-browser via `__selftest()` in the console.
-- **End-to-end** (Playwright, two pages): real offer/answer handshake, bidirectional move
-  sync, turn indicator, illegal-move locking, the sync/reconnect resync path, the win screen,
-  and rematch (resets both sides and alternates who starts).
+## If it won't connect
 
-Per the build order, the final validation target is two **physical phones on separate
-networks** — that's what surfaces real handshake behavior that a single browser can't.
+The most reliable setup is to have **both phones on the same Wi-Fi** when you trade
+codes. That connects almost every time.
+
+Playing across different homes or on cellular data can be hit or miss — some phone
+networks block direct connections between phones. The game tries to work around it
+automatically, and it'll show you what's happening (“connecting…”, “couldn't connect”)
+instead of just freezing. If it can't connect after a bit, try again with both phones
+on the same Wi-Fi.
+
+**Dropped connection?** No problem — your game is saved. Just reconnect (trade codes
+again) and the board picks up right where you left off.
+
+---
+
+## Good to know
+
+- **Works on iPhone (Safari) and Android (Chrome).**
+- **Everyone needs the same copy of the file.** If you make changes or get a newer
+  version, re-send it so everyone's playing the same one.
+- **No internet needed once you're connected** — your moves go straight phone-to-phone.
+- Nothing is tracked, saved to any server, or shared with anyone. It's just the two of you.
+
+Have fun! 🙂
