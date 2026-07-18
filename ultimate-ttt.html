@@ -454,8 +454,75 @@ let pc=null, channel=null, isHost=false;
 
 function b64encode(str){ return btoa(unescape(encodeURIComponent(str))); }
 function b64decode(str){ return decodeURIComponent(escape(atob(str.trim()))); }
-function encodeDesc(d){ return b64encode(JSON.stringify({t:d.type, s:d.sdp})); }
-function decodeDesc(code){ const o=JSON.parse(b64decode(code)); return {type:o.t, sdp:o.s}; }
+function b64urlEncode(str){ return b64encode(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64urlDecode(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return b64decode(s); }
+
+/* ---- Short handshake codes -------------------------------------------------
+   A full WebRTC description is ~1000+ chars of boilerplate. Both peers run this
+   same file, so instead of shipping the whole SDP we extract only the fields
+   that actually differ each time (ICE ufrag/pwd, DTLS fingerprint, setup role,
+   and the candidate addresses) into a compact string and rebuild a valid SDP on
+   the other side. That takes codes from ~1400 to ~200 chars. All candidate
+   types are kept, so same-network (host candidate) connections are unaffected.
+   If anything about the SDP is unexpected we fall back to the full-length
+   format automatically, so connectivity is never sacrificed for brevity. ----- */
+const _CT={host:'h',srflx:'s',prflx:'p',relay:'r'}, _CTr={h:'host',s:'srflx',p:'prflx',r:'relay'};
+const _SU={actpass:'a',active:'c',passive:'p'},      _SUr={a:'actpass',c:'active',p:'passive'};
+
+function _parseSdp(type, sdp){
+  const one = re => (sdp.match(re)||[])[1];
+  const ufrag=one(/a=ice-ufrag:(\S+)/), pwd=one(/a=ice-pwd:(\S+)/);
+  const fp=sdp.match(/a=fingerprint:sha-256 ([0-9A-Fa-f:]+)/i);
+  const setup=one(/a=setup:(\S+)/);
+  if(!ufrag||!pwd||!fp||!setup) throw new Error('unexpected SDP');
+  const cands=[]; const re=/a=candidate:\S+ \d+ (udp|tcp) (\d+) (\S+) (\d+) typ (\S+)([^\r\n]*)/gi; let m;
+  while((m=re.exec(sdp))){
+    const tt=m[6].match(/tcptype (\S+)/);
+    cands.push({tr:m[1].toLowerCase(), prio:parseInt(m[2],10), addr:m[3], port:m[4], ty:m[5].toLowerCase(), tcp:tt?tt[1]:''});
+  }
+  return {type, ufrag, pwd, fp:fp[1].replace(/:/g,'').toLowerCase(), setup, cands};
+}
+function _pack(d){
+  return [
+    d.type==='offer'?'O':'A', d.ufrag, d.pwd, d.fp, (_SU[d.setup]||'a'),
+    ...d.cands.map(c=>[ c.tr==='udp'?'u':'t', (_CT[c.ty]||'h'), c.addr, c.port, c.prio.toString(36), c.tcp ].join(','))
+  ].join('\n');
+}
+function _unpack(s){
+  const L=s.split('\n');
+  return {
+    type: L[0]==='O'?'offer':'answer', ufrag:L[1], pwd:L[2], fp:L[3], setup:(_SUr[L[4]]||'actpass'),
+    cands: L.slice(5).filter(Boolean).map(line=>{
+      const p=line.split(',');
+      return { tr:p[0]==='u'?'udp':'tcp', ty:(_CTr[p[1]]||'host'), addr:p[2], port:p[3], prio:parseInt(p[4],36), tcp:p[5]||'' };
+    })
+  };
+}
+function _buildSdp(d){
+  const fp=(d.fp.match(/.{2}/g)||[]).join(':').toUpperCase();
+  let s='v=0\n'
+    +'o=- '+Date.now()+' 2 IN IP4 127.0.0.1\n'
+    +'s=-\nt=0 0\na=group:BUNDLE 0\na=extmap-allow-mixed\na=msid-semantic: WMS\n'
+    +'m=application 9 UDP/DTLS/SCTP webrtc-datachannel\nc=IN IP4 0.0.0.0\n';
+  d.cands.forEach((c,i)=>{
+    s+='a=candidate:'+(i+1)+' 1 '+c.tr+' '+c.prio+' '+c.addr+' '+c.port+' typ '+c.ty
+      +(c.tr==='tcp'?' tcptype '+(c.tcp||'active'):'')+' generation 0\n';
+  });
+  s+='a=ice-ufrag:'+d.ufrag+'\na=ice-pwd:'+d.pwd+'\na=ice-options:trickle\n'
+    +'a=fingerprint:sha-256 '+fp+'\na=setup:'+d.setup+'\na=mid:0\na=sctp-port:5000\na=max-message-size:262144\n';
+  return s.replace(/\r?\n/g,'\r\n'); // SDP wants CRLF line endings
+}
+
+function encodeDesc(d){
+  try{ return 'U1'+b64urlEncode(_pack(_parseSdp(d.type, d.sdp))); }
+  catch(e){ return 'U0'+b64encode(JSON.stringify({t:d.type, s:d.sdp})); } // safe full-length fallback
+}
+function decodeDesc(code){
+  code=code.trim();
+  if(code.startsWith('U1')){ const d=_unpack(b64urlDecode(code.slice(2))); return {type:d.type, sdp:_buildSdp(d)}; }
+  if(code.startsWith('U0')){ const o=JSON.parse(b64decode(code.slice(2))); return {type:o.t, sdp:o.s}; }
+  const o=JSON.parse(b64decode(code)); return {type:o.t, sdp:o.s}; // legacy (pre-prefix) codes
+}
 
 function waitIce(pc){
   // Non-trickle handshake: the code must carry usable ICE candidates. We wait
