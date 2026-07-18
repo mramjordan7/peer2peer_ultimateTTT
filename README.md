@@ -92,9 +92,12 @@ and rejoin) and the board picks up right where you left off.
 - **Works on iPhone (Safari) and Android (Chrome).**
 - **Everyone needs the same copy of the file.** If you make changes or get a newer
   version, re-send it so everyone's playing the same one.
-- **Your moves always go straight phone-to-phone** — never through any server. The only
-  thing the free database ever touches is the connection code during the few seconds of
-  setup, and that gets deleted the moment you're connected.
+- **There's no game server** — nothing ever stores or runs the game but the two phones.
+  In the normal case your moves go straight phone-to-phone over an encrypted connection.
+  (If a strict network blocks a direct link, that same encrypted data is routed through a
+  relay so you can still play — still just the two of you, with no server seeing the game.)
+- The free database only touches the connection code during the few seconds of setup, and
+  that gets deleted the moment you're connected.
 - No accounts, no tracking, no game history. It's just the two of you.
 
 Have fun! 🙂

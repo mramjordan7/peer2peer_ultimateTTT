@@ -202,15 +202,18 @@
     </div>
   </div>
 
-  <footer>Peer-to-peer over WebRTC · works offline once opened · <a style="color:var(--muted)" href="#" id="howLink">how it works</a></footer>
+  <footer>Peer-to-peer over WebRTC · no game server · <a style="color:var(--muted)" href="#" id="howLink">how it works</a></footer>
   <details id="howto" class="card hidden" style="margin-top:-6px;">
     <summary>How it works</summary>
     <div class="muted" style="margin-top:8px;">
-      This whole game is one HTML file. Create a game and you get a short code; your friend enters it and your two
-      phones connect directly (peer-to-peer). A small free relay is used only for the few seconds of setup to pass
-      the connection details along — after that, moves go straight between phones and nothing passes through any
-      server. If the relay isn't set up, you can still connect manually by trading the long codes. Drop mid-game?
-      Your board is saved and re-syncs automatically when you reconnect.
+      This whole game is one self-contained HTML file — there's no game server, and nothing ever stores or runs the
+      game but the two phones themselves. Create a game and you get a short code; your friend enters it and your
+      phones link up. During the few seconds of setup, a small free relay (a Firebase database) helps the two
+      phones find each other — like swapping numbers through a mutual friend — and then it's discarded. After that
+      your moves travel directly phone-to-phone over an encrypted WebRTC channel. If a strict or mobile network
+      blocks a direct link, WebRTC quietly routes that same encrypted data through a relay so you can still play —
+      still just the two of you, no server ever seeing the game. Prefer no relay at all? “Connect manually instead”
+      trades the codes by hand. Drop mid-game? Your board is saved and re-syncs automatically when you reconnect.
     </div>
   </details>
 </div>
