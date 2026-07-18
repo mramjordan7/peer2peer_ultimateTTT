@@ -112,16 +112,41 @@
   <!-- ============ CONNECT SCREEN ============ -->
   <div id="connectScreen">
     <div class="card" id="chooser">
-      <div class="muted" style="margin-bottom:12px;">
-        Play a friend on their phone — no server, no accounts. One of you creates a game, the other joins.
-        Trade the codes by text/email and you're connected.
+      <div class="muted" id="chooserBlurb" style="margin-bottom:12px;">
+        Play a friend on their phone. One of you creates a game and gets a short code — share it
+        (text it!), your friend types it in, and you're connected.
       </div>
       <div class="row">
-        <button class="primary" id="btnCreate">Create game &nbsp;(Player A)</button>
-        <button id="btnJoin">Join game &nbsp;(Player B)</button>
+        <button class="primary" id="btnCreate">Create game</button>
+        <button id="btnJoin">Join with a code</button>
       </div>
       <div class="row" style="margin-top:8px;">
         <button class="ghost" id="btnLocal">Practice on this device</button>
+      </div>
+      <div style="margin-top:10px; text-align:center;">
+        <a href="#" id="btnAdvanced" class="muted hidden" style="font-size:12px;">Hotspot link, offline play (legacy method)</a>
+      </div>
+    </div>
+
+    <!-- Quick Connect: host (one short code) -->
+    <div class="card hidden" id="qcHost" style="margin-top:12px;">
+      <div class="step">You are Player A (X)</div>
+      <div class="muted">Tap <b>Copy invite</b> to grab a ready-to-send message (link + code) and text it to your friend. The game starts the moment they enter the code.</div>
+      <div id="qcCode" style="font-size:40px; font-weight:900; letter-spacing:4px; text-align:center; margin:14px 0; color:var(--active);">·····</div>
+      <div class="row">
+        <button id="btnCopyCode">Copy invite</button>
+      </div>
+    </div>
+
+    <!-- Quick Connect: join (enter short code) -->
+    <div class="card hidden" id="qcJoin" style="margin-top:12px;">
+      <div class="step">You are Player B (O)</div>
+      <div class="muted">Enter the code your friend sent you.</div>
+      <input id="qcCodeIn" inputmode="text" autocapitalize="characters" autocomplete="off"
+             placeholder="e.g. PLUM7"
+             style="width:100%; margin:12px 0; padding:14px; font-size:28px; font-weight:800; letter-spacing:4px; text-align:center; text-transform:uppercase; background:#0c0f1c; color:var(--text); border:1px solid var(--line); border-radius:10px;">
+      <div class="row">
+        <button class="primary" id="btnJoinCode">Join game</button>
       </div>
     </div>
 
@@ -177,15 +202,18 @@
     </div>
   </div>
 
-  <footer>Peer-to-peer over WebRTC · works offline once opened · <a style="color:var(--muted)" href="#" id="howLink">how it works</a></footer>
+  <footer>Peer-to-peer over WebRTC · no game server · <a style="color:var(--muted)" href="#" id="howLink">how it works</a></footer>
   <details id="howto" class="card hidden" style="margin-top:-6px;">
     <summary>How it works</summary>
     <div class="muted" style="margin-top:8px;">
-      This whole game is one HTML file. When you Create a game your phone builds a connection offer; your friend's
-      Join builds an answer. Trading those two codes lets the phones talk directly (peer-to-peer) with no server in
-      the middle. Public STUN servers are used only to discover your address for the initial handshake — no game data
-      passes through them. If the connection drops, tap Reconnect and re-trade codes; your board is preserved and
-      re-synced automatically.
+      This whole game is one self-contained HTML file — there's no game server, and nothing ever stores or runs the
+      game but the two phones themselves. Create a game and you get a short code; your friend enters it and your
+      phones link up. During the few seconds of setup, a small free relay (a Firebase database) helps the two
+      phones find each other — like swapping numbers through a mutual friend — and then it's discarded. After that
+      your moves travel directly phone-to-phone over an encrypted WebRTC channel. If a strict or mobile network
+      blocks a direct link, WebRTC quietly routes that same encrypted data through a relay so you can still play —
+      still just the two of you, no server ever seeing the game. Prefer no relay at all? “Connect manually instead”
+      trades the codes by hand. Drop mid-game? Your board is saved and re-syncs automatically when you reconnect.
     </div>
   </details>
 </div>
@@ -452,6 +480,69 @@ const RTC_CONFIG = {
 
 let pc=null, channel=null, isHost=false;
 
+/* ============================================================
+   QUICK CONNECT via a free Firebase Realtime Database
+   ------------------------------------------------------------
+   ONE-TIME SETUP (free, no credit card):
+     1. Go to https://console.firebase.google.com and create a project.
+     2. Build > Realtime Database > Create Database (pick a location,
+        start in "test mode").
+     3. Copy the database URL shown at the top — it looks like:
+          https://YOUR-PROJECT-default-rtdb.firebaseio.com
+        (or a regional one ending in .firebasedatabase.app)
+     4. Paste it between the quotes below, save, and re-send this file
+        to everyone. That's it — everyone now gets one-code connect.
+
+   Recommended database rules (Realtime Database > Rules) so games
+   auto-clean and access is limited to the game's "rooms":
+     {
+       "rules": {
+         "rooms": { "$room": { ".read": true, ".write": true } }
+       }
+     }
+
+   Leave the URL blank to keep the old manual copy/paste connection.
+   ============================================================ */
+const FIREBASE_DB_URL = "https://ultimatettt-e832b-default-rtdb.firebaseio.com";   // <-- your Realtime Database URL
+
+// Where the game is hosted, so the invite message can include a tappable link.
+// Set this to your GitHub Pages URL (see README). Leave blank to send an invite
+// with just the code and no link.
+const GAME_LINK = "https://mramjordan7.github.io/peer2peer_ultimateTTT/ultimate-ttt.html";
+
+const FB = FIREBASE_DB_URL.trim().replace(/\/+$/,'');
+const FB_ENABLED = /^https:\/\/.+/.test(FB);
+
+async function fbPut(path, value){
+  const r = await fetch(FB+'/'+path+'.json', {method:'PUT', body: JSON.stringify(value)});
+  if(!r.ok) throw new Error('relay write failed ('+r.status+')');
+}
+async function fbGet(path){
+  const r = await fetch(FB+'/'+path+'.json');
+  if(!r.ok) throw new Error('relay read failed ('+r.status+')');
+  return r.json();
+}
+function fbDelete(path){ try{ fetch(FB+'/'+path+'.json', {method:'DELETE'}); }catch(e){} }
+// Realtime subscribe via Server-Sent Events (no SDK needed). Returns the EventSource.
+function fbStream(path, onValue){
+  const es = new EventSource(FB+'/'+path+'.json');
+  const handler = e=>{ try{ const d=JSON.parse(e.data); if(d && d.data!=null) onValue(d.data); }catch(_){} };
+  es.addEventListener('put', handler);
+  es.addEventListener('patch', handler);
+  return es;
+}
+// Short, human-friendly room code (no ambiguous chars like 0/O/1/I).
+function makeRoomCode(){
+  const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s='';
+  for(let i=0;i<5;i++) s+=A[Math.floor(Math.random()*A.length)];
+  return s;
+}
+let qcStream=null, qcRoom=null;
+function qcCleanup(){
+  if(qcStream){ try{ qcStream.close(); }catch(e){} qcStream=null; }
+  if(qcRoom){ fbDelete('rooms/'+qcRoom); qcRoom=null; }
+}
+
 function b64encode(str){ return btoa(unescape(encodeURIComponent(str))); }
 function b64decode(str){ return decodeURIComponent(escape(atob(str.trim()))); }
 function b64urlEncode(str){ return b64encode(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
@@ -547,6 +638,7 @@ function setupChannel(ch){
   ch.onopen = ()=>{
     connected = true; mode='net';
     clearWatchdog();
+    qcCleanup();          // handshake done — drop the relay room, stop listening
     updateConn();
     hideDropBanner();
     // resync: send our full state; higher moveCount wins on both ends
@@ -654,7 +746,83 @@ async function guestMakeAnswer(){
   }catch(e){ setConnStatus('That game code looks invalid. Ask Player A to re-copy it.','err'); }
 }
 
+// Build the ready-to-send invite message that the "Copy invite" button copies.
+function inviteText(code){
+  const link = GAME_LINK.trim();
+  const openLine = link ? ('Open: '+link+'\n') : '';
+  return "🎮 Ultimate Tic Tac Toe — let's play!\n"+openLine+'Tap "Join with a code" and enter: '+code;
+}
+
+/* ---- Quick Connect: one short code, auto-connect via the free relay ---- */
+async function qcHostCreate(){
+  isHost=true; myMark='X';
+  qcCleanup();
+  setConnStatus('Setting up your game…','');
+  try{
+    newPeer();
+    const ch = pc.createDataChannel('game', {ordered:true});
+    setupChannel(ch);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitIce(pc);
+
+    // Claim a room code (retry a couple times in case of a rare collision).
+    let code, existing=true, tries=0;
+    while(existing && tries++ < 5){
+      code = makeRoomCode();
+      existing = await fbGet('rooms/'+code);       // null if free
+    }
+    qcRoom = code;
+    await fbPut('rooms/'+code+'/offer', encodeDesc(pc.localDescription));
+
+    $('qcCode').textContent = code;
+    setConnStatus('Waiting for your friend to enter '+code+'…','ok');
+
+    // Listen for the answer; connect automatically when it arrives.
+    qcStream = fbStream('rooms/'+code+'/answer', async ans=>{
+      try{
+        if(pc.currentRemoteDescription) return;    // already answered
+        await pc.setRemoteDescription(decodeDesc(ans));
+        setConnStatus('Friend joined — connecting…','');
+        armConnectWatchdog();
+      }catch(e){ setConnStatus('Got a reply but it looked corrupted. Ask them to try the code again.','err'); }
+    });
+  }catch(e){
+    setConnStatus("Couldn't reach the relay to set up the game. Check your internet, or use “Connect manually instead”. ("+e.message+")",'err');
+  }
+}
+
+async function qcJoinCode(){
+  const code = ($('qcCodeIn').value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(!code){ setConnStatus('Enter the code your friend sent you.','err'); return; }
+  isHost=false; myMark='O';
+  setConnStatus('Looking for game '+code+'…','');
+  try{
+    const offer = await fbGet('rooms/'+code+'/offer');
+    if(!offer){ setConnStatus("No game found for “"+code+"”. Double-check the code — it may be mistyped or the game may have already started.",'err'); return; }
+    newPeer();
+    pc.ondatachannel = e=> setupChannel(e.channel);
+    await pc.setRemoteDescription(decodeDesc(offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await waitIce(pc);
+    await fbPut('rooms/'+code+'/answer', encodeDesc(pc.localDescription));
+    setConnStatus('Joined — connecting…','ok');
+    armConnectWatchdog();
+  }catch(e){
+    setConnStatus("Couldn't join. Check your internet and the code, or use “Connect manually instead”. ("+e.message+")",'err');
+  }
+}
+
+function armConnectWatchdog(){
+  clearWatchdog();
+  connectWatchdog = setTimeout(()=>{
+    if(!connected) setConnStatus("Connected to the relay, but the two phones couldn't link directly — often mobile networks blocking it. Best fix: put both phones on the same Wi-Fi and try again.",'err');
+  }, 25000);
+}
+
 function teardownNet(){
+  qcCleanup();
   try{ if(channel) channel.close(); }catch(e){}
   try{ if(pc) pc.close(); }catch(e){}
   channel=null; pc=null; connected=false; mode='local';
@@ -683,15 +851,20 @@ function setConnStatus(msg, kind){
   el.textContent=msg; el.className='status '+(kind||'');
   el.classList.remove('hidden');
 }
+let forceManual=false;   // set when user taps “Connect manually instead”
 function resetConnectUI(){
   $('chooser').classList.remove('hidden');
   $('hostFlow').classList.add('hidden');
   $('joinFlow').classList.add('hidden');
+  $('qcHost').classList.add('hidden');
+  $('qcJoin').classList.add('hidden');
   $('btnBack').classList.add('hidden');
   $('connectStatus').classList.add('hidden');
   $('offerOut').value=''; $('answerIn').value='';
   $('offerIn').value=''; $('answerOut').value='';
+  $('qcCode').textContent='·····'; $('qcCodeIn').value='';
 }
+function useQuick(){ return FB_ENABLED && !forceManual; }
 async function copyText(text, btn){
   try{ await navigator.clipboard.writeText(text); }
   catch(e){ /* fallback */ const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(_){}; ta.remove(); }
@@ -700,14 +873,19 @@ async function copyText(text, btn){
 
 $('btnCreate').addEventListener('click', ()=>{
   $('chooser').classList.add('hidden');
-  $('hostFlow').classList.remove('hidden');
   $('btnBack').classList.remove('hidden');
-  hostCreateOffer();
+  if(useQuick()){ $('qcHost').classList.remove('hidden'); qcHostCreate(); }
+  else{ $('hostFlow').classList.remove('hidden'); hostCreateOffer(); }
 });
 $('btnJoin').addEventListener('click', ()=>{
   $('chooser').classList.add('hidden');
-  $('joinFlow').classList.remove('hidden');
   $('btnBack').classList.remove('hidden');
+  if(useQuick()){ $('qcJoin').classList.remove('hidden'); setTimeout(()=>$('qcCodeIn').focus(),50); }
+  else{ $('joinFlow').classList.remove('hidden'); }
+});
+$('btnAdvanced').addEventListener('click', e=>{
+  e.preventDefault(); forceManual=true;
+  setConnStatus('Manual mode: trade the long codes by hand (no relay needed).','');
 });
 $('btnLocal').addEventListener('click', ()=>{
   teardownNet();          // resets mode to 'local'
@@ -715,9 +893,12 @@ $('btnLocal').addEventListener('click', ()=>{
   myMark='X';
   showGame();
 });
-$('btnBack').addEventListener('click', ()=>{ teardownNet(); resetConnectUI(); });
+$('btnBack').addEventListener('click', ()=>{ teardownNet(); forceManual=false; resetConnectUI(); });
 $('btnCopyOffer').addEventListener('click', e=>copyText($('offerOut').value, e.currentTarget));
 $('btnCopyAnswer').addEventListener('click', e=>copyText($('answerOut').value, e.currentTarget));
+$('btnCopyCode').addEventListener('click', e=>copyText(inviteText($('qcCode').textContent), e.currentTarget));
+$('btnJoinCode').addEventListener('click', qcJoinCode);
+$('qcCodeIn').addEventListener('keydown', e=>{ if(e.key==='Enter') qcJoinCode(); });
 $('btnConnectHost').addEventListener('click', hostAcceptAnswer);
 $('btnMakeAnswer').addEventListener('click', guestMakeAnswer);
 $('btnResign').addEventListener('click', ()=>{ teardownNet(); showConnect(); });
@@ -729,6 +910,15 @@ $('howLink').addEventListener('click', e=>{ e.preventDefault(); $('howto').class
    ============================================================ */
 buildBoard();
 updateConn();
+
+// Adapt the connect screen to whether the free relay (Quick Connect) is set up.
+if(FB_ENABLED){
+  $('btnAdvanced').classList.remove('hidden');   // offer manual as a fallback
+}else{
+  $('chooserBlurb').textContent =
+    "Play a friend on their phone. One of you creates a game and gets a code — send it over, "+
+    "your friend pastes it back, and you're connected. (Tip: set up free one-code connect in the file's settings.)";
+}
 
 /* ---- lightweight self-tests (run in console: UTTT check) ---- */
 window.__selftest = function(){
