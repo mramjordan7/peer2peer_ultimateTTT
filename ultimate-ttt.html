@@ -131,10 +131,10 @@
     <!-- Quick Connect: host (one short code) -->
     <div class="card hidden" id="qcHost" style="margin-top:12px;">
       <div class="step">You are Player A (X)</div>
-      <div class="muted">Send this code to your friend. The game starts the moment they enter it.</div>
+      <div class="muted">Tap <b>Copy invite</b> to grab a ready-to-send message (link + code) and text it to your friend. The game starts the moment they enter the code.</div>
       <div id="qcCode" style="font-size:40px; font-weight:900; letter-spacing:4px; text-align:center; margin:14px 0; color:var(--active);">·····</div>
       <div class="row">
-        <button id="btnCopyCode">Copy code</button>
+        <button id="btnCopyCode">Copy invite</button>
       </div>
     </div>
 
@@ -505,6 +505,11 @@ let pc=null, channel=null, isHost=false;
    ============================================================ */
 const FIREBASE_DB_URL = "https://ultimatettt-e832b-default-rtdb.firebaseio.com";   // <-- your Realtime Database URL
 
+// Where the game is hosted, so the invite message can include a tappable link.
+// Set this to your GitHub Pages URL (see README). Leave blank to send an invite
+// with just the code and no link.
+const GAME_LINK = "https://mramjordan7.github.io/peer2peer_ultimateTTT/ultimate-ttt.html";
+
 const FB = FIREBASE_DB_URL.trim().replace(/\/+$/,'');
 const FB_ENABLED = /^https:\/\/.+/.test(FB);
 
@@ -741,6 +746,13 @@ async function guestMakeAnswer(){
   }catch(e){ setConnStatus('That game code looks invalid. Ask Player A to re-copy it.','err'); }
 }
 
+// Build the ready-to-send invite message that the "Copy invite" button copies.
+function inviteText(code){
+  const link = GAME_LINK.trim();
+  const openLine = link ? ('Open: '+link+'\n') : '';
+  return "🎮 Ultimate Tic Tac Toe — let's play!\n"+openLine+'Tap "Join with a code" and enter: '+code;
+}
+
 /* ---- Quick Connect: one short code, auto-connect via the free relay ---- */
 async function qcHostCreate(){
   isHost=true; myMark='X';
@@ -884,7 +896,7 @@ $('btnLocal').addEventListener('click', ()=>{
 $('btnBack').addEventListener('click', ()=>{ teardownNet(); forceManual=false; resetConnectUI(); });
 $('btnCopyOffer').addEventListener('click', e=>copyText($('offerOut').value, e.currentTarget));
 $('btnCopyAnswer').addEventListener('click', e=>copyText($('answerOut').value, e.currentTarget));
-$('btnCopyCode').addEventListener('click', e=>copyText($('qcCode').textContent, e.currentTarget));
+$('btnCopyCode').addEventListener('click', e=>copyText(inviteText($('qcCode').textContent), e.currentTarget));
 $('btnJoinCode').addEventListener('click', qcJoinCode);
 $('qcCodeIn').addEventListener('keydown', e=>{ if(e.key==='Enter') qcJoinCode(); });
 $('btnConnectHost').addEventListener('click', hostAcceptAnswer);

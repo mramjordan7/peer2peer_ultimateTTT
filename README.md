@@ -71,6 +71,26 @@ written in a comment right above the `FIREBASE_DB_URL` line in the file.)*
 
 ---
 
+## Put the game online so the invite link works (free)
+
+When Player A taps **Copy invite**, it copies a ready-to-send message with a link and the
+code — like *"🎮 Ultimate Tic Tac Toe — let's play! Open: … enter code PLUM7"*. For that
+link to open the game, the file needs to live at a web address. GitHub Pages hosts it free:
+
+1. Merge this into your repo's **main** branch (or push `ultimate-ttt.html` there).
+2. On GitHub, go to the repo's **Settings → Pages**.
+3. Under **Build and deployment → Source**, choose **Deploy from a branch**, pick
+   **main** and **/ (root)**, and **Save**.
+4. After a minute your game is live at
+   `https://mramjordan7.github.io/peer2peer_ultimateTTT/ultimate-ttt.html`
+   — the same address already set as `GAME_LINK` near the top of the file. (If your Pages
+   URL differs, update `GAME_LINK` to match.)
+
+Now the invite link opens the game for anyone you send it to — no file to email around.
+If you'd rather not host it, blank out `GAME_LINK` and the invite sends just the code.
+
+---
+
 ## If it won't connect
 
 The most reliable setup is to have **both phones on the same Wi-Fi** when you connect.
