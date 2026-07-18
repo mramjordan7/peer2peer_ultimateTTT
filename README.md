@@ -82,9 +82,10 @@ link to open the game, the file needs to live at a web address. GitHub Pages hos
 3. Under **Build and deployment → Source**, choose **Deploy from a branch**, pick
    **main** and **/ (root)**, and **Save**.
 4. After a minute your game is live at
-   `https://mramjordan7.github.io/peer2peer_ultimateTTT/`
-   — the same address already set as `GAME_LINK` near the top of the file. (A small
-   `index.html` at the repo root forwards that clean URL to the game.)
+   `https://mramjordan7.github.io/peer2peer_ultimateTTT/ultimate-ttt.html`
+   — the same address already set as `GAME_LINK` near the top of the file. (The clean
+   root URL, `…/peer2peer_ultimateTTT/`, also works — a small `index.html` forwards it to
+   the game — so either address is fine.)
 
 Now the invite link opens the game for anyone you send it to — no file to email around.
 If you'd rather not host it, blank out `GAME_LINK` and the invite sends just the code.
