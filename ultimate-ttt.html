@@ -153,10 +153,10 @@
     <!-- Host flow -->
     <div class="card hidden" id="hostFlow" style="margin-top:12px;">
       <div class="step">Step 1 · You are Player A (X)</div>
-      <div class="muted">Copy this code and send it to your friend (text/email/anything).</div>
+      <div class="muted">Tap <b>Copy invite</b> to grab a message (link + code) and send it to your friend.</div>
       <textarea id="offerOut" readonly placeholder="Generating code…"></textarea>
       <div class="row">
-        <button id="btnCopyOffer">Copy code</button>
+        <button id="btnCopyOffer">Copy invite</button>
       </div>
       <div class="step" style="margin-top:16px;">Step 2 · Paste their reply</div>
       <div class="muted">Your friend sends back an answer code. Paste it here and connect.</div>
@@ -175,10 +175,10 @@
         <button class="primary" id="btnMakeAnswer">Generate answer</button>
       </div>
       <div class="step" style="margin-top:16px;">Step 2 · Send this back</div>
-      <div class="muted">Copy this answer code and send it to Player A. The game starts once they connect.</div>
+      <div class="muted">Tap <b>Copy reply</b> to grab a message and send it back to Player A. The game starts once they connect.</div>
       <textarea id="answerOut" readonly placeholder="Answer appears here after step 1…"></textarea>
       <div class="row">
-        <button id="btnCopyAnswer">Copy answer</button>
+        <button id="btnCopyAnswer">Copy reply</button>
       </div>
     </div>
 
@@ -614,6 +614,13 @@ function decodeDesc(code){
   if(code.startsWith('U0')){ const o=JSON.parse(b64decode(code.slice(2))); return {type:o.t, sdp:o.s}; }
   const o=JSON.parse(b64decode(code)); return {type:o.t, sdp:o.s}; // legacy (pre-prefix) codes
 }
+// Pull the handshake code out of pasted text — tolerates a friendly invite message
+// wrapped around it. Falls back to the trimmed input for a bare code.
+function extractCode(text){
+  const s=(text||'').trim();
+  const m=s.match(/U[01][A-Za-z0-9+/_=-]{16,}/);
+  return m ? m[0] : s;
+}
 
 function waitIce(pc){
   // Non-trickle handshake: the code must carry usable ICE candidates. We wait
@@ -718,7 +725,7 @@ async function hostCreateOffer(){
 }
 
 async function hostAcceptAnswer(){
-  const code=$('answerIn').value.trim();
+  const code=extractCode($('answerIn').value);
   if(!code){ setConnStatus('Paste the answer code from Player B first.','err'); return; }
   try{
     await pc.setRemoteDescription(decodeDesc(code));
@@ -731,7 +738,7 @@ async function hostAcceptAnswer(){
 }
 
 async function guestMakeAnswer(){
-  const code=$('offerIn').value.trim();
+  const code=extractCode($('offerIn').value);
   if(!code){ setConnStatus('Paste the game code from Player A first.','err'); return; }
   isHost=false; myMark='O';
   try{
@@ -751,6 +758,16 @@ function inviteText(code){
   const link = GAME_LINK.trim();
   const openLine = link ? ('Open: '+link+'\n') : '';
   return "🎮 Ultimate Tic Tac Toe — let's play!\n"+openLine+'Tap "Join with a code" and enter: '+code;
+}
+// Legacy (Hotspot / offline) method — friendly wrappers with manual-method steps.
+function legacyOfferText(code){
+  const link = GAME_LINK.trim();
+  const openLine = link ? ('Open: '+link+'\n') : '';
+  return "🎮 Ultimate Tic Tac Toe — let's play! (hotspot / offline)\n"+openLine+
+    'Tap "Hotspot link, offline play (legacy method)", then "Join with a code", paste this in, and send me back the reply it gives you:\n'+code;
+}
+function legacyAnswerText(code){
+  return "🎮 Ultimate Tic Tac Toe — here's my reply!\nPaste this back into your game and tap Connect:\n"+code;
 }
 
 /* ---- Quick Connect: one short code, auto-connect via the free relay ---- */
@@ -894,8 +911,8 @@ $('btnLocal').addEventListener('click', ()=>{
   showGame();
 });
 $('btnBack').addEventListener('click', ()=>{ teardownNet(); forceManual=false; resetConnectUI(); });
-$('btnCopyOffer').addEventListener('click', e=>copyText($('offerOut').value, e.currentTarget));
-$('btnCopyAnswer').addEventListener('click', e=>copyText($('answerOut').value, e.currentTarget));
+$('btnCopyOffer').addEventListener('click', e=>copyText(legacyOfferText($('offerOut').value), e.currentTarget));
+$('btnCopyAnswer').addEventListener('click', e=>copyText(legacyAnswerText($('answerOut').value), e.currentTarget));
 $('btnCopyCode').addEventListener('click', e=>copyText(inviteText($('qcCode').textContent), e.currentTarget));
 $('btnJoinCode').addEventListener('click', qcJoinCode);
 $('qcCodeIn').addEventListener('keydown', e=>{ if(e.key==='Enter') qcJoinCode(); });
