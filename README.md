@@ -77,14 +77,14 @@ When Player A taps **Copy invite**, it copies a ready-to-send message with a lin
 code — like *"🎮 Ultimate Tic Tac Toe — let's play! Open: … enter code PLUM7"*. For that
 link to open the game, the file needs to live at a web address. GitHub Pages hosts it free:
 
-1. Merge this into your repo's **main** branch (or push `ultimate-ttt.html` there).
+1. Merge this into your repo's **main** branch (both `ultimate-ttt.html` and `index.html`).
 2. On GitHub, go to the repo's **Settings → Pages**.
 3. Under **Build and deployment → Source**, choose **Deploy from a branch**, pick
    **main** and **/ (root)**, and **Save**.
 4. After a minute your game is live at
-   `https://mramjordan7.github.io/peer2peer_ultimateTTT/ultimate-ttt.html`
-   — the same address already set as `GAME_LINK` near the top of the file. (If your Pages
-   URL differs, update `GAME_LINK` to match.)
+   `https://mramjordan7.github.io/peer2peer_ultimateTTT/`
+   — the same address already set as `GAME_LINK` near the top of the file. (A small
+   `index.html` at the repo root forwards that clean URL to the game.)
 
 Now the invite link opens the game for anyone you send it to — no file to email around.
 If you'd rather not host it, blank out `GAME_LINK` and the invite sends just the code.
